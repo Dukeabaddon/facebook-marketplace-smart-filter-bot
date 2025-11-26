@@ -18,3 +18,4 @@ USER node
 
 # 6. Start n8n
 CMD ["n8n", "start"]
+
