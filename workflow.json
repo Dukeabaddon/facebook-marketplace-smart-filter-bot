@@ -1,0 +1,330 @@
+{
+  "name": "My workflow 2",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorSource": "store",
+        "actorId": {
+          "__rl": true,
+          "value": "U5DUNxhH3qKt5PnCf",
+          "mode": "list",
+          "cachedResultName": "Facebook Marketplace Scraper (apify/facebook-marketplace-scraper)",
+          "cachedResultUrl": "https://console.apify.com/actors/U5DUNxhH3qKt5PnCf/input"
+        },
+        "customBody": "={{\n  {\n    \"startUrls\": [\n      {\n        \"url\": \"https://www.facebook.com/marketplace/quezoncity/search?query=\" + $json.keyword + \" \" + ($json.specs || \"\") + \"&minPrice=\" + $json.minPrice + \"&maxPrice=\" + $json.maxPrice + \"&radius=40\"\n      }\n    ],\n    \"resultsLimit\": 8 + ($json.offset || 0),\n    \"proxyConfiguration\": {\n      \"useApifyProxy\": true\n    }\n  }\n}}"
+      },
+      "type": "@apify/n8n-nodes-apify.apify",
+      "typeVersion": 1,
+      "position": [
+        176,
+        32
+      ],
+      "id": "00121a71-7b0b-4382-9bc4-707658014976",
+      "name": "Run an Actor and get dataset",
+      "alwaysOutputData": true,
+      "credentials": {
+        "apifyApi": {
+          "id": "oW3zw7OAU5s47ipq",
+          "name": "Apify account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1140614853480951890",
+          "mode": "list",
+          "cachedResultName": "Ace's Chill Server",
+          "cachedResultUrl": "https://discord.com/channels/1140614853480951890"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1184837103864008764",
+          "mode": "list",
+          "cachedResultName": "general",
+          "cachedResultUrl": "https://discord.com/channels/1140614853480951890/1184837103864008764"
+        },
+        "content": "={{ $json.message }}",
+        "options": {}
+      },
+      "id": "f84ecab9-d516-441e-af72-8a969b3f6839",
+      "name": "Send to Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        624,
+        128
+      ],
+      "webhookId": "dfbeefb8-49a3-40e7-8dd3-ac07151f7bf6",
+      "credentials": {
+        "discordBotApi": {
+          "id": "BheYX43lgrS30heQ",
+          "name": "Discord Bot account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "2133348492",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "558d10d7-6aa4-4daa-95fd-8756043a4172",
+      "name": "Send to Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        624,
+        -64
+      ],
+      "webhookId": "5413ea5a-04ca-4e79-a921-8a3435ac4148",
+      "alwaysOutputData": false,
+      "credentials": {
+        "telegramApi": {
+          "id": "p8IDVU0BT949BsoN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get Data\nconst allItems = $input.all().map(i => i.json);\n\n// 2. Get Memory & Constraints\nlet userKeyword = \"macbook\";\nlet userSpecs = \"\";\nlet minPrice = 0;\nlet maxPrice = 10000000;\nlet offset = 0;\n\ntry {\n    const formData = $('Parse Form').first().json;\n    if (formData.error) return { json: { message: formData.error } }; // Handle \"No memory\" error\n    \n    userKeyword = formData.keyword.toLowerCase();\n    userSpecs = (formData.specs || \"\").toLowerCase();\n    minPrice = formData.minPrice || 0;\n    maxPrice = formData.maxPrice || 10000000;\n    offset = formData.offset || 0; // How many to skip\n} catch (e) { console.log(\"Using defaults\"); }\n\nconst requiredWords = userKeyword.split(' ').filter(w => w.length > 0);\nconst specWords = userSpecs.split(',').map(s => s.trim()).filter(s => s.length > 0);\n\n// 3. SMART FILTER\nconst cleanList = allItems.filter(item => {\n  const title = (item.marketplace_listing_title || item.title || \"\").toLowerCase();\n  const mainMatch = requiredWords.every(word => title.includes(word));\n  \n  let specsMatch = true;\n  if (specWords.length > 0) {\n      specsMatch = specWords.some(opt => title.includes(opt));\n  }\n  \n  let priceRaw = \"0\";\n  if (item.listing_price && item.listing_price.amount) priceRaw = item.listing_price.amount; \n  else if (item.price) priceRaw = item.price;\n  \n  let priceVal = parseFloat(priceRaw.toString().replace(/[^0-9.]/g, \"\"));\n  if (isNaN(priceVal)) priceVal = 0;\n\n  const priceMatch = (priceVal >= minPrice && priceVal <= maxPrice);\n\n  return mainMatch && specsMatch && priceMatch;\n});\n\n// 4. SLICE THE LIST (Pagination)\n// If offset is 8, we start showing from item 8\nconst newItems = cleanList.slice(offset, offset + 8);\n\n// 5. Create Message\nlet message = `🚨 *Results for: ${userKeyword}* (Page ${offset/8 + 1}) 🚨\\n`;\nif (userSpecs) message += `_(Filtered for: ${userSpecs})_\\n`;\n\nnewItems.forEach(item => {\n   const title = (item.marketplace_listing_title || item.title || \"No Title\").replace(/\\*/g, \"\"); \n   let displayPrice = item.listing_price ? item.listing_price.formatted_amount : (item.price || \"N/A\");\n   let url = item.listingUrl || `https://www.facebook.com/marketplace/item/${item.id}`;\n   \n   message += `• *${title}* - ${displayPrice}\\n${url}\\n\\n`;\n});\n\nif (newItems.length === 0) {\n  message = `No more items found for \"${userKeyword}\".\\n(Scanned ${allItems.length} items total).`;\n}\n\nreturn { json: { message } };"
+      },
+      "id": "af839eeb-81ba-4fb5-a8f9-81f308bb2e75",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        32
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 1. Access Memory (The Fix: use 'this.')\nlet staticData;\ntry {\n    staticData = this.getWorkflowStaticData('global');\n} catch (e) {\n    // Fallback for testing mode if memory fails\n    staticData = {}; \n}\n\nconst text = $input.item.json.message.text || \"\";\n\n// Defaults\nlet keyword = \"\";\nlet specs = \"\";\nlet minPrice = 0;\nlet maxPrice = 10000000;\nlet offset = 0;\n\n// 2. CHECK: Is this a \"/more\" command?\nif (text.trim().toLowerCase() === \"/more\") {\n    const last = staticData.lastSearch;\n    \n    if (last && last.keyword) {\n        // LOAD previous settings\n        keyword = last.keyword;\n        specs = last.specs;\n        minPrice = last.minPrice;\n        maxPrice = last.maxPrice;\n        // INCREASE Offset (Skip previous items)\n        offset = (staticData.lastOffset || 0) + 8;\n    } else {\n        // No memory found\n        return { json: { error: \"I forgot your last search! Please start a new one.\" } };\n    }\n} \nelse {\n    // 3. NEW SEARCH (Parse the Form)\n    offset = 0; // Reset page to 0\n    \n    const itemMatch = text.match(/item\\s*[:=]\\s*(.+)/i);\n    if (itemMatch) keyword = itemMatch[1].trim();\n    else keyword = text.split('\\n')[0].trim();\n\n    const specsMatch = text.match(/(?:specs|keywords|details)\\s*[:=]\\s*(.+)/i);\n    if (specsMatch) specs = specsMatch[1].trim();\n\n    const minMatch = text.match(/min(?:imum)?\\s*(?:price)?\\s*[:=]\\s*([\\d,]+)/i);\n    if (minMatch) minPrice = parseInt(minMatch[1].replace(/,/g, ''));\n\n    const maxMatch = text.match(/max(?:imum)?\\s*(?:price)?\\s*[:=]\\s*([\\d,]+)/i);\n    if (maxMatch) maxPrice = parseInt(maxMatch[1].replace(/,/g, ''));\n\n    // 4. SAVE to Memory\n    staticData.lastSearch = { keyword, specs, minPrice, maxPrice };\n}\n\n// Update the offset in memory for next time\nstaticData.lastOffset = offset;\n\nreturn {\n  json: {\n    keyword,\n    specs,\n    minPrice,\n    maxPrice,\n    offset // Pass this to Apify\n  }\n};"
+      },
+      "id": "c7eee7ad-1fed-4c8e-b7cc-feb6b4cc9555",
+      "name": "Parse Form",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=⚠️ I didn't understand that command.  Please type /start to get the search form.  Or reply with: item: [your item]",
+        "additionalFields": {}
+      },
+      "id": "f5767ff9-a984-4ddf-9d2a-104afdc7bec3",
+      "name": "Send Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        224
+      ],
+      "webhookId": "39d4097b-c402-42ff-8af1-e1d70262d757",
+      "credentials": {
+        "telegramApi": {
+          "id": "p8IDVU0BT949BsoN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "contains",
+              "value2": "=Item:"
+            }
+          ]
+        }
+      },
+      "id": "3c8ed1e6-d062-4477-b204-645fdc618a9c",
+      "name": "Is Valid Form?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=👋 Welcome! To search, copy and fill out this form:\n\nItem:\nKeywords:\nMin price:\nMax price:\n\n(Example:\nItem: Macbook Air M1\nSpecs: 16gb, space gray\nMin price: 20000\nMax price: 45000)",
+        "additionalFields": {}
+      },
+      "id": "c8a01d77-e9ca-4593-a757-cc8765c53c11",
+      "name": "Send Welcome Form",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        -64
+      ],
+      "webhookId": "65f640c2-979a-43bd-bd6f-cfeaeee4a9f6",
+      "credentials": {
+        "telegramApi": {
+          "id": "p8IDVU0BT949BsoN",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "value2": "/start"
+            }
+          ]
+        }
+      },
+      "id": "a921f171-8c2a-4a32-aa4e-cd966f52afa5",
+      "name": "Check /start",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -496,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "747effc6-eb57-4e3c-8224-f94872c0bf98",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        32
+      ],
+      "webhookId": "97c9e746-9acc-43d6-a19f-59ed32ee95ff",
+      "credentials": {
+        "telegramApi": {
+          "id": "p8IDVU0BT949BsoN",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Run an Actor and get dataset": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Send to Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send to Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Form": {
+      "main": [
+        [
+          {
+            "node": "Run an Actor and get dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid Form?": {
+      "main": [
+        [
+          {
+            "node": "Parse Form",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check /start": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Form",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Valid Form?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check /start",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c54cdd12-5212-48fb-8363-a10da617edee",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e50f03be281a1151a4753774f13363194792ad3922e8a0e65be04de4abf9d423"
+  },
+  "id": "PLA5dzV5jHSSnccN",
+  "tags": []
+}
