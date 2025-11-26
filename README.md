@@ -1,1 +1,11 @@
-My Facebook Marketplace Bot running on n8n.
+---
+title: Marketplace Bot
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
+# Marketplace Bot
+Running n8n on Docker.
