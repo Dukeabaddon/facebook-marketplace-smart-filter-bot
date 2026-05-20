@@ -1,11 +1,11 @@
-# facebook-marketplace-smart-filter-bot
+# Facebook Marketplace Smart Filter Bot
 
 <p align="center">
 	<img src="docs/assets/workflow-demo.gif" alt="Marketplace Bot demo" width="900" />
 </p>
 
 <p align="center">
-	Facebook Marketplace smart filter bot for n8n that cuts through noisy listings and sends only relevant results to Telegram and Discord.
+	Rule-based smart automation for Facebook Marketplace that filters noisy listings and delivers only relevant results to Telegram and Discord.
 </p>
 
 <p align="center">
@@ -17,15 +17,16 @@
 	<img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=111111" alt="JavaScript" />
 </p>
 
-## Why this exists
+## Overview
 
-Facebook Marketplace searches often return bait listings, miscategorized posts, or items that only loosely match the search term. This bot is built to reduce that noise.
+Facebook Marketplace search results are often polluted with keyword-stuffed bait listings and irrelevant variants. This project solves that by routing search forms through an automated pipeline. It leverages Apify to scrape raw results, evaluates them using regex and conditional JavaScript filtering, and routes clean data to Discord and Telegram.
 
-It checks both the title and description context against your keyword and spec rules, then filters by price before sending the results to your chosen channels.
+## Architecture
 
-## What it solves
-
-If you are tired of spending time scrolling through fake posts, wrong variants, or sellers using keyword spam, this workflow narrows the feed to items that actually match what you want.
+1. **Trigger**: Telegram webhook intercepts chat commands (`/start` or `/more`).
+2. **Scraper**: n8n orchestrates queries to Apify's Marketplace actor.
+3. **Filter**: Custom JavaScript logic strips irrelevant or keyword-stuffed postings based on title, description context, and price bounds.
+4. **Delivery**: Cleaned JSON payloads are formatted and broadcast to Discord channels and Telegram users.
 
 ## Features
 
@@ -33,28 +34,7 @@ If you are tired of spending time scrolling through fake posts, wrong variants, 
 - Pagination support with `/more`
 - Telegram onboarding flow for quick searches
 - Discord and Telegram result delivery
-- Open-source friendly config with environment variables
-
-## Demo
-
-Place the GIF at `docs/assets/workflow-demo.gif`.
-
-Recommended demo shot: search something specific like `MacBook Air M1`, then show the bot returning only the matching listings instead of general MacBook noise.
-
-## Repository structure
-
-```text
-.
-├── Dockerfile
-├── LICENSE
-├── README.md
-├── .env.example
-├── workflows/
-│   └── facebook-marketplace-bot.workflow.json
-└── docs/
-    └── assets/
-        └── workflow-demo.gif
-```
+- Clean, fork-friendly env configuration
 
 ## Environment variables
 
@@ -70,19 +50,30 @@ Copy `.env.example` to `.env` and set the runtime values for your install.
 
 ## Setup
 
-1. Run the Docker container from this repo.
-2. Copy `.env.example` to `.env`.
-3. Fill `.env` with your runtime values.
-4. In n8n, create your own Apify, Discord, and Telegram credentials, then select them on the workflow nodes.
-5. Import [workflows/facebook-marketplace-bot.workflow.json](workflows/facebook-marketplace-bot.workflow.json) into n8n.
-6. Trigger the bot in Telegram with `/start`.
+1. Copy `.env.example` to `.env` and fill the variables.
+2. Build and run the n8n container locally:
+   ```bash
+   docker build -t fb-market-bot .
+   docker run -p 5678:5678 --env-file .env fb-market-bot
+   ```
+3. Create your Apify, Discord, and Telegram credentials inside n8n.
+4. Import [workflows/facebook-marketplace-bot.workflow.json](workflows/facebook-marketplace-bot.workflow.json) into your n8n workspace.
+5. Trigger the bot in Telegram via `/start`.
 
-## Configuration rules
+## Repository structure
 
-- Keep personal credentials out of the workflow export.
-- Put deploy-specific IDs in `.env` and reference them from n8n.
-- Add new channels by extending `.env.example` and documenting the new variable.
-- Keep the workflow fork-friendly so anyone can clone it and plug in their own accounts.
+```text
+.
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── .env.example
+├── workflows/
+│   └── facebook-marketplace-bot.workflow.json
+└── docs/
+    └── assets/
+        └── workflow-demo.gif
+```
 
 ## License
 
